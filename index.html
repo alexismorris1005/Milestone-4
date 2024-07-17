@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Search</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    #results, #bookDetails, #bookshelf {
+      margin-top: 20px;
+    }
+    .book {
+      display: inline-block;
+      margin: 10px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      padding: 10px;
+      width: 200px;
+    }
+    .book img {
+      display: block;
+      margin: 0 auto 10px;
+      width: 100px;
+      height: 150px;
+    }
+    #pagination {
+      margin-top: 20px;
+    }
+    #pagination .page {
+      margin: 0 5px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .list-view .book {
+      display: block;
+      border: none;
+      padding: 10px;
+      margin: 10px 0;
+    }
+    .list-view .book img {
+      float: left;
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Book Search</h1>
+  <input type="text" id="searchTerm" placeholder="Enter search term">
+  <button id="searchButton">Search</button>
+  
+  <div id="viewToggle">
+    <label><input type="radio" name="view" value="grid" checked> Grid View</label>
+    <label><input type="radio" name="view" value="list"> List View</label>
+  </div>
+
+  <div id="results">
+    <div id="searchResults"></div>
+    <div id="pagination"></div>
+  </div>
+
+  <div id="bookDetails"></div>
+
+  <div id="bookshelfContainer" style="display:none;">
+    <h2>Your Bookshelf</h2>
+    <div id="bookshelf"></div>
+  </div>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script>
+    $(document).ready(function() {
+      const apiKey = 'AIzaSyAT5sGuu2wDdRWOfsxENzyTde0sQiNqOeo';
+      const resultsPerPage = 10;
+      let searchTerm = '';
+      let totalResults = 0;
+
+      function searchBooks(query, startIndex = 0) {
+        $.ajax({
+          url: `https://www.googleapis.com/books/v1/volumes?q=${query}&startIndex=${startIndex}&maxResults=${resultsPerPage}&key=${apiKey}`,
+          type: 'GET',
+          dataType: 'json',
+          success: function(data) {
+            totalResults = data.totalItems;
+            displayResults(data.items);
+            setupPagination();
+          },
+          error: function(error) {
+            console.log('Error:', error);
+          }
+        });
+      }
+
+      function displayResults(books) {
+        $('#searchResults').empty();
+        if (books) {
+          books.forEach(book => {
+            const bookHtml = `
+              <div class="book" data-id="${book.id}">
+                <h3>${book.volumeInfo.title}</h3>
+                <img src="${book.volumeInfo.imageLinks?.thumbnail}" alt="${book.volumeInfo.title}">
+              </div>
+            `;
+            $('#searchResults').append(bookHtml);
+          });
+        } else {
+          $('#searchResults').append('<p>No results found.</p>');
+        }
+      }
+
+      function setupPagination() {
+        $('#pagination').empty();
+        const totalPages = Math.ceil(totalResults / resultsPerPage);
+        for (let i = 1; i <= totalPages; i++) {
+          const pageHtml = `<button class="page" data-page="${i}">${i}</button>`;
+          $('#pagination').append(pageHtml);
+        }
+      }
+
+      function getBookDetails(bookId) {
+        $.ajax({
+          url: `https://www.googleapis.com/books/v1/volumes/${bookId}?key=${apiKey}`,
+          type: 'GET',
+          dataType: 'json',
+          success: function(data) {
+            const book = data.volumeInfo;
+            const bookDetailsHtml = `
+              <h2>${book.title}</h2>
+              <img src="${book.imageLinks?.thumbnail}" alt="${book.title}">
+              <p>${book.description}</p>
+              <p><strong>Authors:</strong> ${book.authors ? book.authors.join(', ') : 'Unknown'}</p>
+              <p><strong>Published Date:</strong> ${book.publishedDate}</p>
+            `;
+            $('#bookDetails').html(bookDetailsHtml);
+          },
+          error: function(error) {
+            console.log('Error:', error);
+          }
+        });
+      }
+
+      $('#searchButton').click(function() {
+        searchTerm = $('#searchTerm').val();
+        searchBooks(searchTerm);
+      });
+
+      $(document).on('click', '.page', function() {
+        const page = $(this).data('page');
+        const startIndex = (page - 1) * resultsPerPage;
+        searchBooks(searchTerm, startIndex);
+      });
+
+      $(document).on('click', '.book', function() {
+        const bookId = $(this).data('id');
+        getBookDetails(bookId);
+      });
+
+      // View Toggle
+      $('input[name="view"]').change(function() {
+        const view = $(this).val();
+        if (view === 'list') {
+          $('#searchResults').addClass('list-view');
+        } else {
+          $('#searchResults').removeClass('list-view');
+        }
+      });
+
+      // Display Bookshelf
+      function displayBookshelf() {
+        const userId = '110701146409825149492';
+        const shelfId = '1001';
+        $.ajax({
+          url: `https://www.googleapis.com/books/v1/users/${userId}/bookshelves/${shelfId}/volumes?key=${apiKey}`,
+          type: 'GET',
+          dataType: 'json',
+          success: function(data) {
+            const books = data.items;
+            $('#bookshelf').empty();
+            if (books) {
+              books.forEach(book => {
+                const bookHtml = `
+                  <div class="book" data-id="${book.id}">
+                    <h3>${book.volumeInfo.title}</h3>
+                    <img src="${book.volumeInfo.imageLinks?.thumbnail}" alt="${book.volumeInfo.title}">
+                  </div>
+                `;
+                $('#bookshelf').append(bookHtml);
+              });
+            } else {
+              $('#bookshelf').append('<p>No books in your shelf.</p>');
+            }
+          },
+          error: function(error) {
+            console.log('Error:', error);
+          }
+        });
+      }
+
+      // Tabbed Bookshelf Display
+      $('#viewToggle input[name="view"]').change(function() {
+        const view = $(this).val();
+        if (view === 'list') {
+          $('#bookshelfContainer').show();
+          displayBookshelf();
+        } else {
+          $('#bookshelfContainer').hide();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+
+
